@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workflow {
+  id            String      @id @default(uuid())
+  name          String
+  version       Int         @default(1)
+  is_active     Boolean     @default(true)
+  input_schema  String      @default("{}")
+  start_step_id String?
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
+  executions    Execution[]
+  steps         Step[]
+
+  @@index([is_active])
+}
+
+model Step {
+  id          String   @id @default(uuid())
+  workflow_id String
+  name        String
+  step_type   String
+  order       Int
+  metadata    String?  @default("{}")
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  rules       Rule[]
+  workflow    Workflow @relation(fields: [workflow_id], references: [id], onDelete: Cascade)
+
+  @@index([workflow_id])
+  @@index([workflow_id, order])
+}
+
+model Rule {
+  id           String   @id @default(uuid())
+  step_id      String
+  condition    String
+  next_step_id String?
+  priority     Int
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  step         Step     @relation(fields: [step_id], references: [id], onDelete: Cascade)
+
+  @@index([step_id])
+  @@index([step_id, priority])
+}
+
+model Execution {
+  id               String         @id @default(uuid())
+  workflow_id      String
+  workflow_version Int
+  status           String         @default("pending")
+  data             String?        @default("{}")
+  current_step_id  String?
+  retries          Int            @default(0)
+  triggered_by     String?
+  duration         Int?
+  started_at       DateTime       @default(now())
+  ended_at         DateTime?
+  workflow         Workflow       @relation(fields: [workflow_id], references: [id], onDelete: Cascade)
+  execution_logs   ExecutionLog[]
+
+  @@index([workflow_id])
+  @@index([status])
+  @@index([workflow_id, status])
+}
+
+model ExecutionLog {
+  id                 String    @id @default(uuid())
+  execution_id       String
+  step_name          String
+  step_type          String
+  evaluated_rules    String    @default("[]")
+  matched_condition  String?
+  selected_next_step String?
+  status             String    @default("success")
+  error_message      String?
+  approver_id        String?
+  duration           Int?
+  started_at         DateTime  @default(now())
+  ended_at           DateTime?
+  execution          Execution @relation(fields: [execution_id], references: [id], onDelete: Cascade)
+
+  @@index([execution_id])
+  @@index([execution_id, status])
+}
